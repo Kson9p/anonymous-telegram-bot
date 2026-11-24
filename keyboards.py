@@ -6,7 +6,6 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from callbacks import AdminUserCB, DialogCB, ListCB, MenuCB, UserCB
 from database import DialogRecord
-from ui import button_name, sender_name
 
 
 def user_start_keyboard() -> InlineKeyboardMarkup:
@@ -74,7 +73,7 @@ def dialog_card_keyboard(dialog: DialogRecord) -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text="👤 Профиль",
+                    text="📂 О диалоге",
                     callback_data=DialogCB(
                         action="profile", dialog_id=dialog.id
                     ).pack(),
@@ -156,7 +155,7 @@ def history_keyboard(dialog: DialogRecord) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="👤 Профиль",
+                    text="📂 О диалоге",
                     callback_data=DialogCB(
                         action="profile", dialog_id=dialog.id
                     ).pack(),
@@ -226,7 +225,7 @@ def dialog_list_keyboard(
     rows: list[list[InlineKeyboardButton]] = []
     for dialog in dialogs:
         unread = f" · {dialog.unread_count}" if dialog.unread_count else ""
-        text = f"{'🚫' if dialog.is_blocked else '💬'} #{dialog.id} · {button_name(sender_name(dialog), 20)}{unread}"
+        text = f"{'🚫' if dialog.is_blocked else '💬'} Анонимный диалог #{dialog.id}{unread}"
         rows.append(
             [
                 InlineKeyboardButton(
@@ -255,7 +254,7 @@ def user_list_keyboard(
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     for dialog in dialogs:
-        text = f"👤 {button_name(sender_name(dialog), 22)} · #{dialog.id}"
+        text = f"💬 Анонимный диалог #{dialog.id}"
         rows.append(
             [
                 InlineKeyboardButton(
@@ -287,7 +286,7 @@ def blacklist_keyboard(
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"✅ Разблокировать {button_name(sender_name(dialog), 16)}",
+                    text=f"✅ Разблокировать диалог #{dialog.id}",
                     callback_data=AdminUserCB(
                         action="unban", telegram_id=dialog.user_id, page=page
                     ).pack(),

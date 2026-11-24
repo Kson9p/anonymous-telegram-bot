@@ -39,28 +39,6 @@ def escape_clipped(value: str, limit: int) -> str:
     return html.escape(prefix, quote=False) + "…"
 
 
-def button_name(name: str, limit: int = 24) -> str:
-    clean = " ".join((name or "").split())
-    if len(clean) <= limit:
-        return clean
-    return clean[: max(0, limit - 1)] + "…"
-
-
-def username(value: str | None) -> str:
-    return f"@{value}" if value else "—"
-
-
-def sender_name(dialog: DialogRecord) -> str:
-    return dialog.display_name.strip() or "Без имени"
-
-
-def sender_line(dialog: DialogRecord) -> str:
-    name = h(sender_name(dialog))
-    if dialog.username:
-        return f"{name} · {h(username(dialog.username))}"
-    return name
-
-
 def format_dt(timestamp: int, tz: ZoneInfo, *, short: bool = False) -> str:
     dt = datetime.fromtimestamp(timestamp, tz)
     return dt.strftime("%H:%M" if short else "%d.%m.%Y %H:%M")
@@ -101,9 +79,8 @@ def welcome_text() -> str:
         "аудио, GIF, документы, стикеры и альбомы.\n\n"
         "💬 Владелец может ответить тебе прямо в этом чате. Ответ придёт "
         "от имени бота.\n\n"
-        "🔐 Владелец видит твоё имя, username и Telegram ID, а также "
-        "содержимое сообщений. Бот не раскрывает пользователю личные данные владельца.\n\n"
-        "Просто напиши сообщение ниже."
+        "🔐 Имя, username и Telegram ID не показываются владельцу. "
+        "Владелец получает текст и вложения, чтобы ответить."
     )
 
 
@@ -112,9 +89,8 @@ def user_help_text() -> str:
         "ℹ️ <b>Как это работает</b>\n\n"
         "Отправь сюда текст, фото, видео, голосовое, аудио, GIF, документ, "
         "стикер или альбом.\n"
-        "Ответ владельца придёт от имени этого бота.\n\n"
-        "🔐 Владелец видит данные твоего Telegram-аккаунта и сообщения. "
-        "Технические данные также обрабатываются Telegram и хостингом."
+        "Имя, username и Telegram ID не показываются владельцу. "
+        "Он видит содержимое сообщения, чтобы ответить. Ответ придёт от имени бота."
     )
 
 
@@ -123,11 +99,11 @@ def owner_help_text() -> str:
         "🛡 <b>Команды владельца</b>\n\n"
         "/menu — панель управления\n"
         "/cancel — отменить режим ответа\n"
-        "/ban <code>#номер</code> или <code>ID</code> — заблокировать\n"
-        "/unban <code>#номер</code> или <code>ID</code> — разблокировать\n\n"
+        "/ban <code>#номер</code> — заблокировать диалог\n"
+        "/unban <code>#номер</code> — разблокировать диалог\n\n"
         "💬 Чтобы ответить, нажми «Ответить» под карточкой или используй "
         "обычный Telegram Reply на карточку/пересланное сообщение.\n\n"
-        "👤 Профиль пользователя, история и блокировка доступны кнопками."
+        "📂 Карточка диалога, история и блокировка доступны кнопками."
     )
 
 
@@ -155,8 +131,6 @@ def new_message_card(
     lines = [
         "🔎 <b>НОВОЕ СООБЩЕНИЕ</b>",
         "",
-        f"🆔 ID: <code>{dialog.user_id}</code>",
-        f"👤 Отправитель: {sender_line(dialog)}",
         f"💬 Диалог: <code>#{dialog.id}</code>",
         f"🕒 Получено: {format_dt(received_at, tz, short=True)}",
     ]
@@ -194,8 +168,6 @@ def dialog_card_text(
 
     return (
         f"🗂 <b>ДИАЛОГ #{dialog.id}</b>\n\n"
-        f"🆔 ID: <code>{dialog.user_id}</code>\n"
-        f"👤 Отправитель: {sender_line(dialog)}\n"
         f"📌 Статус: {status_text(dialog)}\n"
         f"📬 Непрочитанных: <b>{dialog.unread_count}</b>\n"
         f"🕒 Обновлён: {format_dt(dialog.updated_at, tz, short=True)}\n\n"
@@ -208,11 +180,7 @@ def profile_text(dialog: DialogRecord, tz: ZoneInfo) -> str:
     if dialog.is_blocked and dialog.blocked_at:
         status += f" · {format_dt(dialog.blocked_at, tz, short=True)}"
     return (
-        "👤 <b>ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ</b>\n\n"
-        f"🆔 ID: <code>{dialog.user_id}</code>\n"
-        f"📛 Имя: {h(sender_name(dialog))}\n"
-        f"🔗 Username: {h(username(dialog.username))}\n"
-        f"💬 Диалог: <code>#{dialog.id}</code>\n"
+        f"📂 <b>ДИАЛОГ #{dialog.id}</b>\n\n"
         f"📅 Первое обращение: {format_dt(dialog.first_seen, tz)}\n"
         f"🕒 Последняя активность: {format_dt(dialog.last_seen, tz)}\n"
         f"✉️ Сообщений от пользователя: <b>{dialog.messages_count}</b>\n"
@@ -227,7 +195,6 @@ def history_text(
 ) -> str:
     header = (
         f"📜 <b>ИСТОРИЯ ДИАЛОГА #{dialog.id}</b>\n"
-        f"👤 {h(sender_name(dialog))} · {h(username(dialog.username))}\n"
     )
     if not messages:
         return header + "\n<i>История пока пуста.</i>"
@@ -278,7 +245,7 @@ def dialogs_list_text(
         unread = f" · 📬 {dialog.unread_count}" if dialog.unread_count else ""
         lines.append(
             f"{status_emoji(dialog)} <code>#{dialog.id}</code> · "
-            f"{h(button_name(sender_name(dialog), 30))}{unread}"
+            f"анонимный диалог{unread}"
         )
     return "\n".join(lines)
 
@@ -301,8 +268,7 @@ def users_list_text(
     for dialog in dialogs:
         blocked = " 🚫" if dialog.is_blocked else ""
         lines.append(
-            f"👤 {h(button_name(sender_name(dialog), 28))} · "
-            f"<code>#{dialog.id}</code>{blocked}"
+            f"💬 Анонимный диалог <code>#{dialog.id}</code>{blocked}"
         )
     return "\n".join(lines)
 
@@ -324,8 +290,7 @@ def blacklist_text(
     ]
     for dialog in dialogs:
         lines.append(
-            f"🚫 {h(button_name(sender_name(dialog), 28))} · "
-            f"<code>#{dialog.id}</code> · <code>{dialog.user_id}</code>"
+            f"🚫 Анонимный диалог <code>#{dialog.id}</code>"
         )
     return "\n".join(lines)
 
@@ -347,8 +312,7 @@ def settings_text(settings: Settings) -> str:
 def reply_prompt_text(dialog: DialogRecord) -> str:
     return (
         f"↩️ <b>Ответ для диалога #{dialog.id}</b>\n\n"
-        "Отправьте текст или вложение. Оно уйдёт пользователю от имени бота.\n"
-        "Отмена — /cancel или кнопка ниже."
+        "Отправьте текст или вложение. Оно уйдёт пользователю от имени бота."
     )
 
 
@@ -394,6 +358,10 @@ def rate_limited_text(seconds: int) -> str:
 
 def delivery_failed_user_text() -> str:
     return "⚠️ Не удалось доставить сообщение. Попробуйте немного позже."
+
+
+def delivery_success_user_text() -> str:
+    return "✅ Ваше сообщение доставлено владельцу."
 
 
 def delivery_failed_owner_text(dialog_id: int) -> str:

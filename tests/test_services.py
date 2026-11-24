@@ -4,7 +4,7 @@ import asyncio
 
 import ui
 from callbacks import AdminUserCB, DialogCB, ListCB, MenuCB
-from database import DialogRecord
+from database import DialogRecord, MessageRecord
 from services.content import MessageContent
 from services.media_groups import MediaGroupBuffer
 from services.rate_limit import RateLimiter
@@ -106,3 +106,73 @@ def test_callback_data_is_short_and_structured() -> None:
     ]
     assert all(len(payload.encode("utf-8")) <= 64 for payload in paylods)
     assert DialogCB.unpack("dlg:reply:12").action == "reply"
+
+
+def test_owner_interface_hides_sender_personal_data() -> None:
+    from zoneinfo import ZoneInfo
+
+    import keyboards
+
+    dialog = DialogRecord(
+        id=12,
+        user_id=123456789,
+        display_name="Иван Секретный",
+        username="private_handle",
+        first_seen=100,
+        last_seen=200,
+        messages_count=1,
+        is_blocked=False,
+        blocked_at=None,
+        blocked_reason=None,
+        status="open",
+        unread_count=1,
+        created_at=100,
+        updated_at=200,
+        last_message_at=200,
+    )
+    latest = MessageRecord(
+        id=1,
+        dialog_id=12,
+        direction="in",
+        kind="text",
+        content="Привет",
+        created_at=200,
+    )
+    tz = ZoneInfo("UTC")
+    owner_texts = [
+        ui.new_message_card(dialog, MessageContent("text", "Текст", "Привет", False), 200, tz),
+        ui.dialog_card_text(dialog, latest, tz),
+        ui.profile_text(dialog, tz),
+        ui.history_text(dialog, [latest], tz),
+        ui.dialogs_list_text(
+            [dialog], page=0, total=1, page_size=8, unread_only=True
+        ),
+        ui.users_list_text([dialog], page=0, total=1, page_size=8),
+        ui.blacklist_text([dialog], page=0, total=1, page_size=8),
+    ]
+    for text in owner_texts:
+        assert "Иван Секретный" not in text
+        assert "private_handle" not in text
+        assert "123456789" not in text
+
+    keyboards_to_check = [
+        keyboards.dialog_list_keyboard(
+            [dialog], section="new", page=0, total=1, page_size=8
+        ),
+        keyboards.user_list_keyboard([dialog], page=0, total=1, page_size=8),
+        keyboards.blacklist_keyboard([dialog], page=0, total=1, page_size=8),
+    ]
+    for markup in keyboards_to_check:
+        labels = " ".join(
+            button.text for row in markup.inline_keyboard for button in row
+        )
+        assert "Иван Секретный" not in labels
+        assert "private_handle" not in labels
+        assert "123456789" not in labels
+
+
+def test_user_privacy_and_delivery_text() -> None:
+    assert "Имя, username и Telegram ID не показываются владельцу" in ui.welcome_text()
+    assert "Имя, username и Telegram ID не показываются владельцу" in ui.user_help_text()
+    assert "Просто напиши сообщение ниже" not in ui.welcome_text()
+    assert ui.delivery_success_user_text() == "✅ Ваше сообщение доставлено владельцу."

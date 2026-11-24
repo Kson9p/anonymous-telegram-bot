@@ -122,8 +122,13 @@ def create_user_router(
         except DatabaseError:
             logger.error("Не удалось сохранить альбом пользователя")
             delivered = False
-        if not delivered and messages:
-            await send_text(messages[0], ui.delivery_failed_user_text())
+        if messages:
+            notice = (
+                ui.delivery_success_user_text()
+                if delivered
+                else ui.delivery_failed_user_text()
+            )
+            await send_text(messages[0], notice)
 
     @router.message()
     async def handle_message(message: Message) -> None:
@@ -172,5 +177,7 @@ def create_user_router(
             delivered = False
         if not delivered:
             await send_text(message, ui.delivery_failed_user_text())
+        else:
+            await send_text(message, ui.delivery_success_user_text())
 
     return router

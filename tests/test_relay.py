@@ -72,8 +72,9 @@ async def test_user_text_card_and_owner_reply(setup) -> None:
     assert card_kwargs["chat_id"] == OWNER_ID
     assert "НОВОЕ СООБЩЕНИЕ" in card_kwargs["text"]
     assert "Привет, это тест" in card_kwargs["text"]
-    assert "@ivan" in card_kwargs["text"]
-    assert str(OWNER_ID) not in card_kwargs["text"]
+    assert "@ivan" not in card_kwargs["text"]
+    assert str(user_id) not in card_kwargs["text"]
+    assert "Иван" not in card_kwargs["text"]
 
     card_id = 101
     resolved = await db.resolve_dialog_by_owner_message(OWNER_ID, card_id)

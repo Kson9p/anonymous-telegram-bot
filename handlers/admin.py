@@ -370,7 +370,7 @@ def create_admin_router(
                 await send_owner(
                     message,
                     "⚠️ Это сообщение не привязано к диалогу. Ответьте на карточку "
-                    "полученного сообщения или укажите <code>#номер</code>.",
+                    "полученного сообщения или укажите <code>#номер диалога</code>.",
                 )
                 return
         elif args:
@@ -379,20 +379,18 @@ def create_admin_router(
             reason = parts[1] if len(parts) > 1 else None
             if raw_target.startswith("#") and raw_target[1:].isdigit():
                 dialog = await database.get_dialog(int(raw_target[1:]))
-            elif raw_target.isdigit():
-                dialog = await database.get_dialog_by_user(int(raw_target))
             else:
                 await send_owner(
                     message,
-                    "⚠️ Формат: <code>/ban #124</code> или <code>/ban 123456789</code>.",
+                    "⚠️ Формат: <code>/ban #номер_диалога</code>.",
                 )
                 return
 
         if dialog is None:
             await send_owner(
                 message,
-                "⚠️ Диалог не найден. Проверьте <code>#номер</code> или Telegram ID, "
-                "либо ответьте на карточку пользователя.",
+                "⚠️ Диалог не найден. Проверьте номер диалога или ответьте "
+                "на карточку сообщения.",
             )
             return
         if dialog.is_blocked:
@@ -428,14 +426,12 @@ def create_admin_router(
             raw_target = args.split(maxsplit=1)[0]
             if raw_target.startswith("#") and raw_target[1:].isdigit():
                 dialog = await database.get_dialog(int(raw_target[1:]))
-            elif raw_target.isdigit():
-                dialog = await database.get_dialog_by_user(int(raw_target))
 
         if dialog is None:
             await send_owner(
                 message,
-                "⚠️ Диалог не найден. Проверьте <code>#номер</code> или Telegram ID, "
-                "либо ответьте на карточку пользователя.",
+                "⚠️ Диалог не найден. Проверьте номер диалога или ответьте "
+                "на карточку сообщения.",
             )
             return
         if not dialog.is_blocked:

@@ -25,6 +25,7 @@ class FakeBot:
     def __init__(self) -> None:
         self.direct_calls: list[tuple[str, dict[str, Any]]] = []
         self.shortcut_calls: list[str] = []
+        self.shortcut_texts: list[str] = []
         self._next_id = 100
 
     def _id(self) -> int:
@@ -33,6 +34,9 @@ class FakeBot:
 
     async def __call__(self, method: Any) -> Any:
         self.shortcut_calls.append(type(method).__name__)
+        text = getattr(method, "text", None)
+        if isinstance(text, str):
+            self.shortcut_texts.append(text)
         if type(method).__name__ == "AnswerCallbackQuery":
             return True
         return type("Sent", (), {"message_id": self._id()})()
@@ -182,6 +186,10 @@ async def test_user_message_then_owner_reply_via_telegram_reply(tmp_path) -> Non
         assert len(sends) == 1
         assert sends[0][1]["chat_id"] == OWNER_ID
         assert "Сообщение пользователя" in sends[0][1]["text"]
+        assert "✅ Ваше сообщение доставлено владельцу." in bot.shortcut_texts
+        assert "1001" not in sends[0][1]["text"]
+        assert "@user" not in sends[0][1]["text"]
+        assert "Пользователь" not in sends[0][1]["text"]
 
         card_id = 101
         await dispatcher.feed_update(
@@ -239,7 +247,9 @@ async def test_callback_and_fsm_reply(tmp_path) -> None:
         )
         edits = [call for call in bot.direct_calls if call[0] == "edit_message_text"]
         assert edits
-        assert "ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ" in edits[-1][1]["text"]
+        assert "ДИАЛОГ #1" in edits[-1][1]["text"]
+        assert "2001" not in edits[-1][1]["text"]
+        assert "@user" not in edits[-1][1]["text"]
     finally:
         await buffers.close(flush=False)
         await db.close()
