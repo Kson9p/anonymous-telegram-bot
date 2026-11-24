@@ -185,3 +185,31 @@ def test_user_privacy_and_delivery_text() -> None:
     button = keyboards.delivery_success_keyboard().inline_keyboard[0][0]
     assert button.text == "✍️ Написать ещё"
     assert UserCB.unpack(button.callback_data).action == "compose"
+
+
+def test_owner_reply_success_offers_to_reply_again() -> None:
+    import keyboards
+
+    assert "Ответ отправлен в диалог #12" in ui.owner_reply_success_text(12)
+    assert "Хотите написать ещё одно сообщение?" in ui.owner_reply_success_text(12)
+    button = keyboards.owner_reply_again_keyboard(
+        DialogRecord(
+            id=12,
+            user_id=123456789,
+            display_name="Аноним",
+            username=None,
+            first_seen=100,
+            last_seen=200,
+            messages_count=1,
+            is_blocked=False,
+            blocked_at=None,
+            blocked_reason=None,
+            status="open",
+            unread_count=0,
+            created_at=100,
+            updated_at=200,
+            last_message_at=200,
+        )
+    ).inline_keyboard[0][0]
+    assert button.text == "↩️ Ответить ещё"
+    assert DialogCB.unpack(button.callback_data).action == "reply"

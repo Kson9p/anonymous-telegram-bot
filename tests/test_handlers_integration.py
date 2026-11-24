@@ -213,8 +213,17 @@ async def test_user_message_then_owner_reply_via_telegram_reply(tmp_path) -> Non
 
         await dispatcher.feed_update(
             bot,
-            make_text_update(
+            make_callback_update(
                 4,
+                from_user_id=OWNER_ID,
+                data="dlg:reply:1",
+                message_id=card_id,
+            ),
+        )
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(
+                5,
                 user_id=OWNER_ID,
                 text="Ответ владельца",
                 message_id=20,
@@ -247,6 +256,8 @@ async def test_callback_and_fsm_reply(tmp_path) -> None:
             bot,
             make_text_update(11, user_id=2001, text="Первое", message_id=30),
         )
+        owner_card_id = bot.last_direct_message_id
+        assert owner_card_id is not None
 
         await dispatcher.feed_update(
             bot,
@@ -266,10 +277,56 @@ async def test_callback_and_fsm_reply(tmp_path) -> None:
         copies = [call for call in bot.direct_calls if call[0] == "copy_message"]
         assert copies[-1][1]["chat_id"] == 2001
 
+        owner_ack, owner_ack_keyboard = next(
+            (text, markup)
+            for text, markup in bot.shortcut_messages
+            if text.startswith("✅ Ответ отправлен в диалог #1.")
+        )
+        assert "Хотите написать ещё одно сообщение?" in owner_ack
+        assert owner_ack_keyboard.inline_keyboard[0][0].text == "↩️ Ответить ещё"
+
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(
+                14, user_id=OWNER_ID, text="Без нажатия", message_id=22
+            ),
+        )
+        copies = [call for call in bot.direct_calls if call[0] == "copy_message"]
+        assert len(copies) == 1
+
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(
+                15,
+                user_id=OWNER_ID,
+                text="Reply без нажатия",
+                message_id=24,
+                reply_to_message_id=owner_card_id,
+            ),
+        )
+        copies = [call for call in bot.direct_calls if call[0] == "copy_message"]
+        assert len(copies) == 1
+
         await dispatcher.feed_update(
             bot,
             make_callback_update(
-                14, from_user_id=OWNER_ID, data="dlg:profile:1", message_id=501
+                16, from_user_id=OWNER_ID, data="dlg:reply:1", message_id=501
+            ),
+        )
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(
+                17, user_id=OWNER_ID, text="Ещё один ответ", message_id=25
+            ),
+        )
+        copies = [call for call in bot.direct_calls if call[0] == "copy_message"]
+        assert len(copies) == 2
+        assert copies[-1][1]["chat_id"] == 2001
+
+        await dispatcher.feed_update(
+            bot,
+            make_callback_update(
+                18, from_user_id=OWNER_ID, data="dlg:profile:1", message_id=501
             ),
         )
         edits = [call for call in bot.direct_calls if call[0] == "edit_message_text"]

@@ -271,6 +271,10 @@ def create_admin_router(
         message: Message,
         state: FSMContext,
     ) -> DialogRecord | None:
+        dialog_id = await state_dialog_id(state)
+        if dialog_id is None:
+            return None
+
         if message.reply_to_message is not None:
             dialog = await database.resolve_dialog_by_owner_message(
                 settings.owner_id,
@@ -279,10 +283,7 @@ def create_admin_router(
             if dialog is not None:
                 return dialog
 
-        dialog_id = await state_dialog_id(state)
-        if dialog_id is not None:
-            return await database.get_dialog(dialog_id)
-        return None
+        return await database.get_dialog(dialog_id)
 
     async def route_owner_message(
         message: Message,
@@ -300,6 +301,11 @@ def create_admin_router(
         delivered = await relay.deliver_owner_message(message, dialog)
         if delivered:
             await state.clear()
+            await send_owner(
+                message,
+                ui.owner_reply_success_text(dialog.id),
+                reply_markup=keyboards.owner_reply_again_keyboard(dialog),
+            )
 
     async def flush_owner_album(
         messages: Sequence[Message],
@@ -319,6 +325,11 @@ def create_admin_router(
         delivered = await relay.deliver_owner_album(messages, dialog)
         if delivered:
             await state.clear()
+            await send_owner(
+                messages[0],
+                ui.owner_reply_success_text(dialog.id),
+                reply_markup=keyboards.owner_reply_again_keyboard(dialog),
+            )
 
     @router.message(Command("start", "menu", "panel", ignore_case=True))
     async def cmd_menu(message: Message, state: FSMContext) -> None:

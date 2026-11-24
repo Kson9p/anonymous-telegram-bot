@@ -205,6 +205,21 @@ def reply_prompt_keyboard(dialog: DialogRecord) -> InlineKeyboardMarkup:
     )
 
 
+def owner_reply_again_keyboard(dialog: DialogRecord) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="↩️ Ответить ещё",
+                    callback_data=DialogCB(
+                        action="reply", dialog_id=dialog.id
+                    ).pack(),
+                )
+            ]
+        ]
+    )
+
+
 def _pagination_rows(
     section: str, page: int, total: int, page_size: int
 ) -> list[list[InlineKeyboardButton]]:
