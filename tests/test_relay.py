@@ -190,6 +190,62 @@ async def test_long_text_is_copied_after_card(setup) -> None:
     assert copied["message_id"] == 41
 
 
+@pytest.mark.parametrize(
+    ("attribute", "kind"),
+    [
+        ("photo", "photo"),
+        ("video", "video"),
+        ("video_note", "video_note"),
+        ("voice", "voice"),
+        ("audio", "audio"),
+        ("animation", "animation"),
+        ("document", "document"),
+        ("sticker", "sticker"),
+    ],
+)
+async def test_supported_attachments_are_relayed_both_ways(
+    setup,
+    attribute: str,
+    kind: str,
+) -> None:
+    db, bot, relay = setup
+    user_id = 6001
+    dialog = await db.get_or_create_dialog(user_id, "Медиа", "media_user")
+
+    incoming = message(61, user_id, caption="Входящее вложение")
+    setattr(incoming, attribute, object())
+    content = extract_single(incoming)
+    assert content is not None
+    assert content.kind == kind
+    assert await relay.deliver_user_message(incoming, dialog, content)
+
+    owner_copy = next(
+        kwargs
+        for method, kwargs in bot.calls
+        if method == "copy_message" and kwargs["chat_id"] == OWNER_ID
+    )
+    assert owner_copy["from_chat_id"] == user_id
+    assert owner_copy["message_id"] == incoming.message_id
+
+    outgoing = message(700, OWNER_ID, caption="Ответное вложение")
+    setattr(outgoing, attribute, object())
+    assert await relay.deliver_owner_message(outgoing, dialog)
+
+    user_copy = [
+        kwargs
+        for method, kwargs in bot.calls
+        if method == "copy_message" and kwargs["chat_id"] == user_id
+    ]
+    assert user_copy[-1]["from_chat_id"] == OWNER_ID
+    assert user_copy[-1]["message_id"] == outgoing.message_id
+
+    history = await db.get_messages(dialog.id, 10)
+    assert [(record.direction, record.kind) for record in history] == [
+        ("in", kind),
+        ("out", kind),
+    ]
+
+
 async def test_restart_keeps_reply_routing(tmp_path) -> None:
     path = tmp_path / "restart.db"
     settings = make_settings(tmp_path)
