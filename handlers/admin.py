@@ -320,14 +320,14 @@ def create_admin_router(
         if delivered:
             await state.clear()
 
-    @router.message(Command("start", "menu", "panel"))
+    @router.message(Command("start", "menu", "panel", ignore_case=True))
     async def cmd_menu(message: Message, state: FSMContext) -> None:
         if not is_owner_message(message):
             return
         await state.clear()
         await send_panel(message)
 
-    @router.message(Command("help"))
+    @router.message(Command("help", ignore_case=True))
     async def cmd_help(message: Message) -> None:
         if not is_owner_message(message):
             return
@@ -337,7 +337,7 @@ def create_admin_router(
             reply_markup=keyboards.owner_menu_keyboard(),
         )
 
-    @router.message(Command("cancel"))
+    @router.message(Command("cancel", ignore_case=True))
     async def cmd_cancel(message: Message, state: FSMContext) -> None:
         if not is_owner_message(message):
             return
@@ -348,7 +348,7 @@ def create_admin_router(
             reply_markup=keyboards.owner_menu_keyboard(),
         )
 
-    @router.message(Command("ban"))
+    @router.message(Command("ban", ignore_case=True))
     async def cmd_ban(
         message: Message,
         command: CommandObject,
@@ -412,7 +412,7 @@ def create_admin_router(
             reply_markup=keyboards.owner_menu_keyboard(),
         )
 
-    @router.message(Command("unban"))
+    @router.message(Command("unban", ignore_case=True))
     async def cmd_unban(message: Message, command: CommandObject) -> None:
         if not is_owner_message(message):
             return

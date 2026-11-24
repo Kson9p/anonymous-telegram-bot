@@ -59,7 +59,7 @@ def create_user_router(
         except TelegramAPIError as exc:
             logger.warning("Ответ пользователю не доставлен: %s", type(exc).__name__)
 
-    @router.message(CommandStart())
+    @router.message(CommandStart(ignore_case=True))
     async def handle_start(message: Message) -> None:
         if message.from_user is None:
             return
@@ -82,7 +82,7 @@ def create_user_router(
             reply_markup=keyboards.user_start_keyboard(),
         )
 
-    @router.message(Command("help"))
+    @router.message(Command("help", ignore_case=True))
     async def handle_help(message: Message) -> None:
         await send_text(
             message,
@@ -90,7 +90,7 @@ def create_user_router(
             reply_markup=keyboards.user_start_keyboard(),
         )
 
-    @router.message(Command("cancel"))
+    @router.message(Command("cancel", ignore_case=True))
     async def handle_cancel(message: Message) -> None:
         await send_text(
             message,

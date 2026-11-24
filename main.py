@@ -9,11 +9,13 @@ import time
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.exceptions import (
     TelegramAPIError,
     TelegramConflictError,
     TelegramForbiddenError,
+    TelegramRetryAfter,
     TelegramUnauthorizedError,
 )
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -32,6 +34,7 @@ from services.media_groups import MediaGroupBuffer
 from services.middleware import UpdateDeduperMiddleware
 from services.rate_limit import NoticeThrottle, RateLimiter
 from services.relay import RelayService
+from services.telegram import safe_telegram_call
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +50,13 @@ def _configure_logging(level: str = "INFO") -> None:
     logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
 
 
-async def _setup_bot_commands(bot: Bot, owner_id: int) -> None:
+async def _setup_bot_commands(
+    bot: Bot,
+    owner_id: int,
+    *,
+    retries: int,
+    max_retry_after: int,
+) -> None:
     user_commands = [
         BotCommand(command="start", description="Начать"),
         BotCommand(command="help", description="Как это работает"),
@@ -60,9 +69,23 @@ async def _setup_bot_commands(bot: Bot, owner_id: int) -> None:
         BotCommand(command="help", description="Команды владельца"),
     ]
     try:
-        await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
-        await bot.set_my_commands(
-            owner_commands, scope=BotCommandScopeChat(chat_id=owner_id)
+        await safe_telegram_call(
+            lambda: bot.set_my_commands(
+                user_commands,
+                scope=BotCommandScopeDefault(),
+            ),
+            operation="set_user_commands",
+            retries=retries,
+            max_retry_after=max_retry_after,
+        )
+        await safe_telegram_call(
+            lambda: bot.set_my_commands(
+                owner_commands,
+                scope=BotCommandScopeChat(chat_id=owner_id),
+            ),
+            operation="set_owner_commands",
+            retries=retries,
+            max_retry_after=max_retry_after,
         )
     except TelegramAPIError as exc:
         logger.warning("Не удалось обновить меню команд: %s", type(exc).__name__)
@@ -128,6 +151,7 @@ async def run_bot(settings: Settings) -> int:
     database = Database(settings.database_path)
     bot = Bot(
         token=settings.bot_token,
+        session=AiohttpSession(timeout=25.0),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     user_media_buffer = MediaGroupBuffer(
@@ -148,25 +172,51 @@ async def run_bot(settings: Settings) -> int:
         await database.initialize()
         await _cleanup_database(database, settings)
 
+        logger.info("Проверка подключения к Telegram...")
         try:
-            me = await bot.get_me()
+            me = await safe_telegram_call(
+                lambda: bot.get_me(),
+                operation="get_me",
+                retries=settings.telegram_max_retries,
+                max_retry_after=settings.floodwait_max_seconds,
+            )
         except TelegramUnauthorizedError:
             logger.error("BOT_TOKEN отклонён Telegram. Проверьте токен в @BotFather.")
+            return 1
+        except TelegramRetryAfter as exc:
+            logger.error(
+                "Telegram временно ограничил запросы. Подождите %s сек. "
+                "и запустите бота снова.",
+                exc.retry_after,
+            )
             return 1
         except TelegramAPIError as exc:
             logger.error("Не удалось подключиться к Telegram: %s", type(exc).__name__)
             return 1
 
+        logger.info("Telegram подключён: @%s", me.username or me.id)
         if me.id == settings.owner_id:
             logger.error("OWNER_ID не должен совпадать с ID самого бота.")
             return 1
 
+        logger.info("Удаление webhook перед long polling...")
         try:
-            await bot.delete_webhook(drop_pending_updates=False)
+            await safe_telegram_call(
+                lambda: bot.delete_webhook(drop_pending_updates=False),
+                operation="delete_webhook",
+                retries=settings.telegram_max_retries,
+                max_retry_after=settings.floodwait_max_seconds,
+            )
         except TelegramAPIError as exc:
             logger.warning("Не удалось удалить webhook: %s", type(exc).__name__)
 
-        await _setup_bot_commands(bot, settings.owner_id)
+        logger.info("Настройка меню команд...")
+        await _setup_bot_commands(
+            bot,
+            settings.owner_id,
+            retries=settings.telegram_max_retries,
+            max_retry_after=settings.floodwait_max_seconds,
+        )
 
         relay = RelayService(bot, database, settings)
         rate_limiter = RateLimiter(
@@ -213,6 +263,7 @@ async def run_bot(settings: Settings) -> int:
             "SQLite WAL включён; история хранится %s дн.",
             settings.history_retention_days,
         )
+        logger.info("Ожидание сообщений Telegram...")
 
         try:
             await dispatcher.start_polling(

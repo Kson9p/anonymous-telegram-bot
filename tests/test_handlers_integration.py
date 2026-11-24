@@ -245,6 +245,28 @@ async def test_callback_and_fsm_reply(tmp_path) -> None:
         await db.close()
 
 
+async def test_commands_are_case_insensitive(tmp_path) -> None:
+    db, bot, dispatcher, buffers = await build_dispatcher(tmp_path)
+    try:
+        before = bot.shortcut_calls.count("SendMessage")
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(30, user_id=4001, text="/Start", message_id=40),
+        )
+        after_user = bot.shortcut_calls.count("SendMessage")
+        assert after_user == before + 1
+
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(31, user_id=OWNER_ID, text="/MeNu", message_id=41),
+        )
+        after_owner = bot.shortcut_calls.count("SendMessage")
+        assert after_owner == after_user + 1
+    finally:
+        await buffers.close(flush=False)
+        await db.close()
+
+
 async def test_non_owner_admin_callback_is_ignored(tmp_path) -> None:
     db, bot, dispatcher, buffers = await build_dispatcher(tmp_path)
     try:
