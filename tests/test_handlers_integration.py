@@ -205,9 +205,8 @@ async def test_user_message_then_owner_reply_via_telegram_reply(tmp_path) -> Non
         )
         assert "Хотите отправить ещё одно сообщение?" in ack_text
         assert ack_keyboard.inline_keyboard[0][0].text == "✍️ Написать ещё"
-        assert "1001" not in sends[0][1]["text"]
-        assert "@user" not in sends[0][1]["text"]
-        assert "Пользователь" not in sends[0][1]["text"]
+        assert "🆔 ID: <code>1001</code>" in sends[0][1]["text"]
+        assert "👤 Отправитель: Пользователь · @user" in sends[0][1]["text"]
         card_id = bot.last_direct_message_id
         assert card_id is not None
 

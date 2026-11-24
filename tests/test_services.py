@@ -140,8 +140,12 @@ def test_owner_interface_hides_sender_personal_data() -> None:
         created_at=200,
     )
     tz = ZoneInfo("UTC")
+    new_message = ui.new_message_card(
+        dialog, MessageContent("text", "Текст", "Привет", False), 200, tz
+    )
+    assert "🆔 ID: <code>123456789</code>" in new_message
+    assert "👤 Отправитель: Иван Секретный · @private_handle" in new_message
     owner_texts = [
-        ui.new_message_card(dialog, MessageContent("text", "Текст", "Привет", False), 200, tz),
         ui.dialog_card_text(dialog, latest, tz),
         ui.profile_text(dialog, tz),
         ui.history_text(dialog, [latest], tz),
@@ -175,8 +179,8 @@ def test_owner_interface_hides_sender_personal_data() -> None:
 def test_user_privacy_and_delivery_text() -> None:
     import keyboards
 
-    assert "Имя, username и Telegram ID не показываются владельцу" in ui.welcome_text()
-    assert "Имя, username и Telegram ID не показываются владельцу" in ui.user_help_text()
+    assert "владелец видит твоё имя, username и " in ui.welcome_text()
+    assert "владелец видит имя, username и Telegram ID" in ui.user_help_text()
     assert "Просто напиши сообщение ниже" not in ui.welcome_text()
     assert ui.delivery_success_user_text() == (
         "✅ Ваше сообщение доставлено владельцу.\n\n"

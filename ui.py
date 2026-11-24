@@ -19,6 +19,13 @@ def h(value: object) -> str:
     return html.escape(str(value), quote=False)
 
 
+def sender_line(dialog: DialogRecord) -> str:
+    name = h(dialog.display_name.strip() or "Без имени")
+    if dialog.username:
+        return f"{name} · @{h(dialog.username)}"
+    return name
+
+
 def escape_clipped(value: str, limit: int) -> str:
     """Экранирует HTML и гарантирует длину уже с учётом &amp; и других сущностей."""
 
@@ -79,8 +86,8 @@ def welcome_text() -> str:
         "аудио, GIF, документы, стикеры и альбомы.\n\n"
         "💬 Владелец может ответить тебе прямо в этом чате. Ответ придёт "
         "от имени бота.\n\n"
-        "🔐 Имя, username и Telegram ID не показываются владельцу. "
-        "Владелец получает текст и вложения, чтобы ответить."
+        "🔐 В карточке нового сообщения владелец видит твоё имя, username и "
+        "Telegram ID. Он также получает текст и вложения, чтобы ответить."
     )
 
 
@@ -89,8 +96,8 @@ def user_help_text() -> str:
         "ℹ️ <b>Как это работает</b>\n\n"
         "Отправь сюда текст, фото, видео, голосовое, аудио, GIF, документ, "
         "стикер или альбом.\n"
-        "Имя, username и Telegram ID не показываются владельцу. "
-        "Он видит содержимое сообщения, чтобы ответить. Ответ придёт от имени бота."
+        "В карточке нового сообщения владелец видит имя, username и Telegram ID, "
+        "а также содержимое сообщения. Ответ придёт от имени бота."
     )
 
 
@@ -131,6 +138,8 @@ def new_message_card(
     lines = [
         "🔎 <b>НОВОЕ СООБЩЕНИЕ</b>",
         "",
+        f"🆔 ID: <code>{dialog.user_id}</code>",
+        f"👤 Отправитель: {sender_line(dialog)}",
         f"💬 Диалог: <code>#{dialog.id}</code>",
         f"🕒 Получено: {format_dt(received_at, tz, short=True)}",
     ]
