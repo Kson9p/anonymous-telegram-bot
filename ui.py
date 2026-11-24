@@ -367,6 +367,10 @@ def delivery_success_user_text() -> str:
     )
 
 
+def compose_required_text() -> str:
+    return "Сначала нажми «Написать сообщение», чтобы отправить текст или вложение."
+
+
 def delivery_failed_owner_text(dialog_id: int) -> str:
     return f"⚠️ Не удалось передать вложение из диалога #{dialog_id}."
 

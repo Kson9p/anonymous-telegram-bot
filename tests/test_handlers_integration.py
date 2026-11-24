@@ -28,6 +28,7 @@ class FakeBot:
         self.shortcut_texts: list[str] = []
         self.shortcut_messages: list[tuple[str, Any]] = []
         self._next_id = 100
+        self.last_direct_message_id: int | None = None
 
     def _id(self) -> int:
         self._next_id += 1
@@ -45,7 +46,8 @@ class FakeBot:
 
     async def send_message(self, **kwargs: Any) -> Any:
         self.direct_calls.append(("send_message", kwargs))
-        return type("Sent", (), {"message_id": self._id()})()
+        self.last_direct_message_id = self._id()
+        return type("Sent", (), {"message_id": self.last_direct_message_id})()
 
     async def copy_message(self, **kwargs: Any) -> Any:
         self.direct_calls.append(("copy_message", kwargs))
@@ -180,8 +182,16 @@ async def test_user_message_then_owner_reply_via_telegram_reply(tmp_path) -> Non
     try:
         await dispatcher.feed_update(
             bot,
+            make_text_update(1, user_id=1001, text="/start", message_id=9),
+        )
+        await dispatcher.feed_update(
+            bot,
+            make_callback_update(2, from_user_id=1001, data="usr:compose"),
+        )
+        await dispatcher.feed_update(
+            bot,
             make_text_update(
-                1, user_id=1001, text="Сообщение пользователя", message_id=10
+                3, user_id=1001, text="Сообщение пользователя", message_id=10
             ),
         )
         sends = [call for call in bot.direct_calls if call[0] == "send_message"]
@@ -198,12 +208,13 @@ async def test_user_message_then_owner_reply_via_telegram_reply(tmp_path) -> Non
         assert "1001" not in sends[0][1]["text"]
         assert "@user" not in sends[0][1]["text"]
         assert "Пользователь" not in sends[0][1]["text"]
+        card_id = bot.last_direct_message_id
+        assert card_id is not None
 
-        card_id = 101
         await dispatcher.feed_update(
             bot,
             make_text_update(
-                2,
+                4,
                 user_id=OWNER_ID,
                 text="Ответ владельца",
                 message_id=20,
@@ -226,13 +237,21 @@ async def test_callback_and_fsm_reply(tmp_path) -> None:
     try:
         await dispatcher.feed_update(
             bot,
-            make_text_update(10, user_id=2001, text="Первое", message_id=30),
+            make_text_update(9, user_id=2001, text="/start", message_id=29),
+        )
+        await dispatcher.feed_update(
+            bot,
+            make_callback_update(10, from_user_id=2001, data="usr:compose"),
+        )
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(11, user_id=2001, text="Первое", message_id=30),
         )
 
         await dispatcher.feed_update(
             bot,
             make_callback_update(
-                11, from_user_id=OWNER_ID, data="dlg:reply:1", message_id=501
+                12, from_user_id=OWNER_ID, data="dlg:reply:1", message_id=501
             ),
         )
         prompt_calls = [call for call in bot.shortcut_calls if call == "SendMessage"]
@@ -241,7 +260,7 @@ async def test_callback_and_fsm_reply(tmp_path) -> None:
         await dispatcher.feed_update(
             bot,
             make_text_update(
-                12, user_id=OWNER_ID, text="Ответ через FSM", message_id=21
+                13, user_id=OWNER_ID, text="Ответ через FSM", message_id=21
             ),
         )
         copies = [call for call in bot.direct_calls if call[0] == "copy_message"]
@@ -250,7 +269,7 @@ async def test_callback_and_fsm_reply(tmp_path) -> None:
         await dispatcher.feed_update(
             bot,
             make_callback_update(
-                13, from_user_id=OWNER_ID, data="dlg:profile:1", message_id=501
+                14, from_user_id=OWNER_ID, data="dlg:profile:1", message_id=501
             ),
         )
         edits = [call for call in bot.direct_calls if call[0] == "edit_message_text"]
@@ -258,6 +277,57 @@ async def test_callback_and_fsm_reply(tmp_path) -> None:
         assert "ДИАЛОГ #1" in edits[-1][1]["text"]
         assert "2001" not in edits[-1][1]["text"]
         assert "@user" not in edits[-1][1]["text"]
+    finally:
+        await buffers.close(flush=False)
+        await db.close()
+
+
+async def test_user_must_compose_again_after_each_success(tmp_path) -> None:
+    db, bot, dispatcher, buffers = await build_dispatcher(tmp_path)
+    try:
+        user_id = 2501
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(20, user_id=user_id, text="/start", message_id=1),
+        )
+
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(21, user_id=user_id, text="Рано", message_id=2),
+        )
+        assert not [call for call in bot.direct_calls if call[0] == "send_message"]
+        assert not any(
+            text.startswith("✅ Ваше сообщение") for text, _ in bot.shortcut_messages
+        )
+
+        await dispatcher.feed_update(
+            bot,
+            make_callback_update(22, from_user_id=user_id, data="usr:compose"),
+        )
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(23, user_id=user_id, text="Первое", message_id=3),
+        )
+        assert len([call for call in bot.direct_calls if call[0] == "send_message"]) == 1
+
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(24, user_id=user_id, text="Без повторного нажатия", message_id=4),
+        )
+        assert len([call for call in bot.direct_calls if call[0] == "send_message"]) == 1
+
+        await dispatcher.feed_update(
+            bot,
+            make_callback_update(25, from_user_id=user_id, data="usr:compose"),
+        )
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(26, user_id=user_id, text="Второе", message_id=5),
+        )
+        assert len([call for call in bot.direct_calls if call[0] == "send_message"]) == 2
+        assert sum(
+            text.startswith("✅ Ваше сообщение") for text, _ in bot.shortcut_messages
+        ) == 2
     finally:
         await buffers.close(flush=False)
         await db.close()

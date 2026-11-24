@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from aiogram import F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 import keyboards
@@ -20,6 +21,7 @@ from services.media_groups import MediaGroupBuffer
 from services.rate_limit import NoticeThrottle, RateLimiter
 from services.relay import RelayService
 from services.telegram import safe_telegram_call
+from states import UserComposeStates
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +62,10 @@ def create_user_router(
             logger.warning("Ответ пользователю не доставлен: %s", type(exc).__name__)
 
     @router.message(CommandStart(ignore_case=True))
-    async def handle_start(message: Message) -> None:
+    async def handle_start(message: Message, state: FSMContext) -> None:
         if message.from_user is None:
             return
+        await state.clear()
         try:
             dialog = await database.get_or_create_dialog(
                 message.from_user.id,
@@ -91,14 +94,17 @@ def create_user_router(
         )
 
     @router.message(Command("cancel", ignore_case=True))
-    async def handle_cancel(message: Message) -> None:
+    async def handle_cancel(message: Message, state: FSMContext) -> None:
+        await state.clear()
         await send_text(
             message,
-            "ℹ️ У тебя нет активных действий. Просто отправь сообщение.",
+            "ℹ️ Отправка отменена. Нажми кнопку, чтобы написать владельцу.",
+            reply_markup=keyboards.user_start_keyboard(),
         )
 
     @router.callback_query(UserCB.filter(F.action == "compose"))
-    async def handle_compose(callback: CallbackQuery) -> None:
+    async def handle_compose(callback: CallbackQuery, state: FSMContext) -> None:
+        await state.set_state(UserComposeStates.waiting_for_message)
         await callback.answer()
         if callback.message is not None:
             await send_text(
@@ -116,13 +122,18 @@ def create_user_router(
                 reply_markup=keyboards.user_start_keyboard(),
             )
 
-    async def flush_album(messages: Sequence[Message]) -> None:
+    async def flush_album(
+        messages: Sequence[Message],
+        state: FSMContext,
+    ) -> None:
         try:
             delivered = await relay.deliver_user_album(messages)
         except DatabaseError:
             logger.error("Не удалось сохранить альбом пользователя")
             delivered = False
         if messages:
+            if delivered:
+                await state.clear()
             notice = (
                 ui.delivery_success_user_text()
                 if delivered
@@ -136,8 +147,8 @@ def create_user_router(
                 ),
             )
 
-    @router.message()
-    async def handle_message(message: Message) -> None:
+    @router.message(UserComposeStates.waiting_for_message)
+    async def handle_message(message: Message, state: FSMContext) -> None:
         if message.from_user is None:
             return
 
@@ -152,6 +163,7 @@ def create_user_router(
             return
 
         if dialog.is_blocked:
+            await state.clear()
             if notice_throttle.allow(message.from_user.id):
                 await send_text(message, ui.blocked_user_text())
             return
@@ -170,7 +182,10 @@ def create_user_router(
 
         if is_album:
             try:
-                await media_buffer.add(message, flush_album)
+                await media_buffer.add(
+                    message,
+                    lambda messages: flush_album(messages, state),
+                )
             except Exception as exc:  # noqa: BLE001 - буфер не должен ронять polling
                 logger.error("Ошибка буфера альбома: %s", type(exc).__name__)
                 await send_text(message, ui.delivery_failed_user_text())
@@ -184,10 +199,19 @@ def create_user_router(
         if not delivered:
             await send_text(message, ui.delivery_failed_user_text())
         else:
+            await state.clear()
             await send_text(
                 message,
                 ui.delivery_success_user_text(),
                 reply_markup=keyboards.delivery_success_keyboard(),
             )
+
+    @router.message()
+    async def handle_message_without_compose(message: Message) -> None:
+        await send_text(
+            message,
+            ui.compose_required_text(),
+            reply_markup=keyboards.user_start_keyboard(),
+        )
 
     return router
