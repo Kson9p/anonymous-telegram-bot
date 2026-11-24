@@ -361,7 +361,10 @@ def delivery_failed_user_text() -> str:
 
 
 def delivery_success_user_text() -> str:
-    return "✅ Ваше сообщение доставлено владельцу."
+    return (
+        "✅ Ваше сообщение доставлено владельцу.\n\n"
+        "Хотите отправить ещё одно сообщение?"
+    )
 
 
 def delivery_failed_owner_text(dialog_id: int) -> str:

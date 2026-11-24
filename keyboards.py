@@ -27,6 +27,19 @@ def user_start_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def delivery_success_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✍️ Написать ещё",
+                    callback_data=UserCB(action="compose").pack(),
+                )
+            ]
+        ]
+    )
+
+
 def owner_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[

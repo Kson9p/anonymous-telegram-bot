@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import ui
-from callbacks import AdminUserCB, DialogCB, ListCB, MenuCB
+from callbacks import AdminUserCB, DialogCB, ListCB, MenuCB, UserCB
 from database import DialogRecord, MessageRecord
 from services.content import MessageContent
 from services.media_groups import MediaGroupBuffer
@@ -103,6 +103,7 @@ def test_callback_data_is_short_and_structured() -> None:
         ListCB(section="dialogs", page=12).pack(),
         DialogCB(action="history", dialog_id=999999).pack(),
         AdminUserCB(action="unban", telegram_id=999999999999, page=10).pack(),
+        UserCB(action="compose").pack(),
     ]
     assert all(len(payload.encode("utf-8")) <= 64 for payload in paylods)
     assert DialogCB.unpack("dlg:reply:12").action == "reply"
@@ -172,7 +173,15 @@ def test_owner_interface_hides_sender_personal_data() -> None:
 
 
 def test_user_privacy_and_delivery_text() -> None:
+    import keyboards
+
     assert "Имя, username и Telegram ID не показываются владельцу" in ui.welcome_text()
     assert "Имя, username и Telegram ID не показываются владельцу" in ui.user_help_text()
     assert "Просто напиши сообщение ниже" not in ui.welcome_text()
-    assert ui.delivery_success_user_text() == "✅ Ваше сообщение доставлено владельцу."
+    assert ui.delivery_success_user_text() == (
+        "✅ Ваше сообщение доставлено владельцу.\n\n"
+        "Хотите отправить ещё одно сообщение?"
+    )
+    button = keyboards.delivery_success_keyboard().inline_keyboard[0][0]
+    assert button.text == "✍️ Написать ещё"
+    assert UserCB.unpack(button.callback_data).action == "compose"

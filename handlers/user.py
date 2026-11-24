@@ -128,7 +128,13 @@ def create_user_router(
                 if delivered
                 else ui.delivery_failed_user_text()
             )
-            await send_text(messages[0], notice)
+            await send_text(
+                messages[0],
+                notice,
+                reply_markup=(
+                    keyboards.delivery_success_keyboard() if delivered else None
+                ),
+            )
 
     @router.message()
     async def handle_message(message: Message) -> None:
@@ -178,6 +184,10 @@ def create_user_router(
         if not delivered:
             await send_text(message, ui.delivery_failed_user_text())
         else:
-            await send_text(message, ui.delivery_success_user_text())
+            await send_text(
+                message,
+                ui.delivery_success_user_text(),
+                reply_markup=keyboards.delivery_success_keyboard(),
+            )
 
     return router

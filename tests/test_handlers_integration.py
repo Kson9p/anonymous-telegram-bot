@@ -26,6 +26,7 @@ class FakeBot:
         self.direct_calls: list[tuple[str, dict[str, Any]]] = []
         self.shortcut_calls: list[str] = []
         self.shortcut_texts: list[str] = []
+        self.shortcut_messages: list[tuple[str, Any]] = []
         self._next_id = 100
 
     def _id(self) -> int:
@@ -37,6 +38,7 @@ class FakeBot:
         text = getattr(method, "text", None)
         if isinstance(text, str):
             self.shortcut_texts.append(text)
+            self.shortcut_messages.append((text, getattr(method, "reply_markup", None)))
         if type(method).__name__ == "AnswerCallbackQuery":
             return True
         return type("Sent", (), {"message_id": self._id()})()
@@ -186,7 +188,13 @@ async def test_user_message_then_owner_reply_via_telegram_reply(tmp_path) -> Non
         assert len(sends) == 1
         assert sends[0][1]["chat_id"] == OWNER_ID
         assert "Сообщение пользователя" in sends[0][1]["text"]
-        assert "✅ Ваше сообщение доставлено владельцу." in bot.shortcut_texts
+        ack_text, ack_keyboard = next(
+            (text, markup)
+            for text, markup in bot.shortcut_messages
+            if text.startswith("✅ Ваше сообщение доставлено владельцу.")
+        )
+        assert "Хотите отправить ещё одно сообщение?" in ack_text
+        assert ack_keyboard.inline_keyboard[0][0].text == "✍️ Написать ещё"
         assert "1001" not in sends[0][1]["text"]
         assert "@user" not in sends[0][1]["text"]
         assert "Пользователь" not in sends[0][1]["text"]
