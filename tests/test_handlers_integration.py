@@ -436,6 +436,44 @@ async def test_dossier_start_link_returns_signed_link_to_dossier_bot(tmp_path) -
         await db.close()
 
 
+async def test_dossier_auto_confirmation_keeps_plain_return_button(tmp_path, monkeypatch) -> None:
+    import handlers.user as user_handlers
+
+    notifications = []
+
+    async def notify(url, *, user_id, proof):
+        notifications.append((url, user_id, proof))
+        return True
+
+    monkeypatch.setattr(user_handlers, "notify_dossier_verification", notify)
+    db, bot, dispatcher, buffers = await build_dispatcher(
+        tmp_path,
+        dossier_link_secret="x" * 32,
+        dossier_bot_username="ddnet_sliv_bot",
+        dossier_verification_url="https://dossier.example/api/verification/source-bot",
+    )
+    try:
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(
+                41,
+                user_id=4002,
+                text="/start dossier_verify_abc123_-",
+                message_id=51,
+            ),
+        )
+        text, markup = bot.shortcut_messages[-1]
+        assert "Запуск подтверждён" in text
+        assert notifications[0][0] == "https://dossier.example/api/verification/source-bot"
+        assert notifications[0][1] == 4002
+        button = markup.inline_keyboard[0][0]
+        assert button.text == "↩️ Вернуться в бот досье"
+        assert button.url == "https://t.me/ddnet_sliv_bot"
+    finally:
+        await buffers.close(flush=False)
+        await db.close()
+
+
 async def test_non_owner_admin_callback_is_ignored(tmp_path) -> None:
     db, bot, dispatcher, buffers = await build_dispatcher(tmp_path)
     try:

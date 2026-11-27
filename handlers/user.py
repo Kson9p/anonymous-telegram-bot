@@ -95,6 +95,9 @@ def create_user_router(
                     await send_text(
                         message,
                         "✅ Запуск подтверждён. Можешь просто вернуться в бот досье.",
+                        reply_markup=keyboards.dossier_return_keyboard(
+                            f"https://t.me/{settings.dossier_bot_username}"
+                        ),
                     )
                     return
                 await send_text(
