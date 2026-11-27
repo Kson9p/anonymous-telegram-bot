@@ -233,7 +233,8 @@ python main.py
 | `FLOODWAIT_MAX_SECONDS` | нет | `60` | Максимальная пауза FloodWait |
 | `MAINTENANCE_INTERVAL_SECONDS` | нет | `21600` | Интервал очистки базы (6 часов) |
 | `DOSSIER_LINK_SECRET` | для связки | — | Общий секрет подписи; хранить только в Secrets |
-| `DOSSIER_BOT_USERNAME` | нет | `ddnet_sliv_bot` | Бот, куда возвращается подтверждение |
+| `DOSSIER_BOT_USERNAME` | нет | `ddnet_sliv_bot` | Бот досье |
+| `DOSSIER_VERIFICATION_URL` | для автоматического подтверждения | — | HTTPS URL бота досье с путём `/api/verification/source-bot` |
 
 Все значения валидируются при старте. При ошибке бот завершится с понятным
 сообщением, не раскрывая токен.

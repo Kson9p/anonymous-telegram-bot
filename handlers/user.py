@@ -17,6 +17,7 @@ from callbacks import UserCB
 from config import Settings
 from database import Database, DatabaseError
 from services.content import extract_single
+from services.dossier_callback import notify_dossier_verification
 from services.dossier_link import NONCE_RE, make_proof
 from services.media_groups import MediaGroupBuffer
 from services.rate_limit import NoticeThrottle, RateLimiter
@@ -85,6 +86,26 @@ def create_user_router(
                 nonce=nonce,
                 secret=settings.dossier_link_secret,
             )
+            if settings.dossier_verification_url:
+                if await notify_dossier_verification(
+                    settings.dossier_verification_url,
+                    user_id=message.from_user.id,
+                    proof=proof,
+                ):
+                    await send_text(
+                        message,
+                        "✅ Запуск подтверждён. Можешь просто вернуться в бот досье.",
+                    )
+                    return
+                await send_text(
+                    message,
+                    "⚠️ Не удалось автоматически передать подтверждение боту досье. "
+                    "Попробуй ещё раз чуть позже или нажми кнопку возврата ниже.",
+                    reply_markup=keyboards.dossier_return_keyboard(
+                        f"https://t.me/{settings.dossier_bot_username}?start={proof}"
+                    ),
+                )
+                return
             url = f"https://t.me/{settings.dossier_bot_username}?start={proof}"
             await send_text(
                 message,

@@ -48,6 +48,7 @@ class Settings:
     maintenance_interval_seconds: int
     dossier_link_secret: str = ""
     dossier_bot_username: str = "ddnet_sliv_bot"
+    dossier_verification_url: str = ""
 
     @property
     def tzinfo(self) -> ZoneInfo:
@@ -158,6 +159,9 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
     ) or "ddnet_sliv_bot"
     if dossier_bot_username and not re.fullmatch(r"[A-Za-z0-9_]{5,32}", dossier_bot_username):
         errors.append("DOSSIER_BOT_USERNAME имеет неверный формат.")
+    dossier_verification_url = env.get("DOSSIER_VERIFICATION_URL", "").strip().rstrip("/")
+    if dossier_verification_url and not dossier_verification_url.startswith("https://"):
+        errors.append("DOSSIER_VERIFICATION_URL должен быть публичным HTTPS-адресом.")
 
     rate_limit_window_seconds = _get_int(
         env, "RATE_LIMIT_WINDOW_SECONDS", 60, minimum=1, maximum=86_400, errors=errors
@@ -250,4 +254,5 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
         maintenance_interval_seconds=maintenance_interval_seconds,
         dossier_link_secret=dossier_link_secret,
         dossier_bot_username=dossier_bot_username,
+        dossier_verification_url=dossier_verification_url,
     )

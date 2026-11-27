@@ -6,6 +6,7 @@ import ui
 from callbacks import AdminUserCB, DialogCB, ListCB, MenuCB, UserCB
 from database import DialogRecord, MessageRecord
 from services.content import MessageContent
+from services.dossier_callback import notify_dossier_verification
 from services.dossier_link import make_proof, verify_proof
 from services.media_groups import MediaGroupBuffer
 from services.rate_limit import RateLimiter
@@ -245,3 +246,29 @@ def test_dossier_proof_matches_dossier_bot_protocol_and_expires() -> None:
     assert not verify_proof(
         proof, user_id=user_id, nonce=nonce, secret=secret, now=issued_at + 601
     )
+
+
+async def test_dossier_callback_notifies_public_verification_endpoint():
+    from aiohttp import web
+    from aiohttp.test_utils import TestServer
+
+    received = []
+    app = web.Application()
+
+    async def confirm(request):
+        received.append(await request.json())
+        return web.json_response({"verified": True})
+
+    app.router.add_post("/api/verification/source-bot", confirm)
+    server = TestServer(app)
+    await server.start_server()
+    try:
+        ok = await notify_dossier_verification(
+            str(server.make_url("/api/verification/source-bot")),
+            user_id=123,
+            proof="signed-proof",
+        )
+    finally:
+        await server.close()
+    assert ok
+    assert received == [{"user_id": 123, "proof": "signed-proof"}]
