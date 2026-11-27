@@ -411,7 +411,7 @@ async def test_commands_are_case_insensitive(tmp_path) -> None:
         await db.close()
 
 
-async def test_dossier_start_link_returns_signed_link_to_dossier_bot(tmp_path) -> None:
+async def test_dossier_start_without_callback_keeps_plain_navigation_button(tmp_path) -> None:
     db, bot, dispatcher, buffers = await build_dispatcher(
         tmp_path,
         dossier_link_secret="x" * 32,
@@ -428,9 +428,10 @@ async def test_dossier_start_link_returns_signed_link_to_dossier_bot(tmp_path) -
             ),
         )
         text, markup = bot.shortcut_messages[-1]
-        assert "Запуск подтверждён" in text
-        url = markup.inline_keyboard[0][0].url
-        assert url.startswith("https://t.me/ddnet_sliv_bot?start=p4001_")
+        assert "автоматической проверки" in text
+        button = markup.inline_keyboard[0][0]
+        assert button.text == "↩️ Вернуться в бот досье"
+        assert button.url == "https://t.me/ddnet_sliv_bot"
     finally:
         await buffers.close(flush=False)
         await db.close()

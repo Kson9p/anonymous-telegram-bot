@@ -86,34 +86,31 @@ def create_user_router(
                 nonce=nonce,
                 secret=settings.dossier_link_secret,
             )
-            if settings.dossier_verification_url:
-                if await notify_dossier_verification(
-                    settings.dossier_verification_url,
-                    user_id=message.from_user.id,
-                    proof=proof,
-                ):
-                    await send_text(
-                        message,
-                        "✅ Запуск подтверждён. Можешь просто вернуться в бот досье.",
-                        reply_markup=keyboards.dossier_return_keyboard(
-                            f"https://t.me/{settings.dossier_bot_username}"
-                        ),
-                    )
-                    return
+            return_url = f"https://t.me/{settings.dossier_bot_username}"
+            if not settings.dossier_verification_url:
                 await send_text(
                     message,
-                    "⚠️ Не удалось автоматически передать подтверждение боту досье. "
-                    "Попробуй ещё раз чуть позже или нажми кнопку возврата ниже.",
-                    reply_markup=keyboards.dossier_return_keyboard(
-                        f"https://t.me/{settings.dossier_bot_username}?start={proof}"
-                    ),
+                    "⚠️ Не удалось связаться с ботом досье для автоматической проверки. "
+                    "Попробуй позже или сообщи владельцу бота.",
+                    reply_markup=keyboards.dossier_return_keyboard(return_url),
                 )
                 return
-            url = f"https://t.me/{settings.dossier_bot_username}?start={proof}"
+            if await notify_dossier_verification(
+                settings.dossier_verification_url,
+                user_id=message.from_user.id,
+                proof=proof,
+            ):
+                await send_text(
+                    message,
+                    "✅ Запуск подтверждён. Можешь просто вернуться в бот досье.",
+                    reply_markup=keyboards.dossier_return_keyboard(return_url),
+                )
+                return
             await send_text(
                 message,
-                "✅ Запуск подтверждён. Вернитесь в бот досье, чтобы закончить проверку.",
-                reply_markup=keyboards.dossier_return_keyboard(url),
+                "⚠️ Не удалось автоматически передать подтверждение боту досье. "
+                "Попробуй ещё раз чуть позже.",
+                reply_markup=keyboards.dossier_return_keyboard(return_url),
             )
             return
 
