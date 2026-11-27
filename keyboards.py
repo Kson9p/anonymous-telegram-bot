@@ -40,6 +40,14 @@ def delivery_success_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+def dossier_return_keyboard(url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="↩️ Вернуться в бот досье", url=url)]
+        ]
+    )
+
+
 def owner_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[

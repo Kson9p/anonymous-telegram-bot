@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramAPIError
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -17,6 +17,7 @@ from callbacks import UserCB
 from config import Settings
 from database import Database, DatabaseError
 from services.content import extract_single
+from services.dossier_link import NONCE_RE, make_proof
 from services.media_groups import MediaGroupBuffer
 from services.rate_limit import NoticeThrottle, RateLimiter
 from services.relay import RelayService
@@ -62,10 +63,36 @@ def create_user_router(
             logger.warning("Ответ пользователю не доставлен: %s", type(exc).__name__)
 
     @router.message(CommandStart(ignore_case=True))
-    async def handle_start(message: Message, state: FSMContext) -> None:
+    async def handle_start(
+        message: Message,
+        state: FSMContext,
+        command: CommandObject,
+    ) -> None:
         if message.from_user is None:
             return
         await state.clear()
+        start_arg = (command.args or "").strip()
+        if start_arg.startswith("dossier_verify_"):
+            nonce = start_arg[len("dossier_verify_"): ]
+            if not NONCE_RE.fullmatch(nonce) or not settings.dossier_link_secret:
+                await send_text(
+                    message,
+                    "⚠️ Проверка временно недоступна. Вернитесь в бот досье и попробуйте ещё раз.",
+                )
+                return
+            proof = make_proof(
+                user_id=message.from_user.id,
+                nonce=nonce,
+                secret=settings.dossier_link_secret,
+            )
+            url = f"https://t.me/{settings.dossier_bot_username}?start={proof}"
+            await send_text(
+                message,
+                "✅ Запуск подтверждён. Вернитесь в бот досье, чтобы закончить проверку.",
+                reply_markup=keyboards.dossier_return_keyboard(url),
+            )
+            return
+
         try:
             dialog = await database.get_or_create_dialog(
                 message.from_user.id,

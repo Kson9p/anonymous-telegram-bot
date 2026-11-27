@@ -139,11 +139,11 @@ def make_callback_update(
     )
 
 
-async def build_dispatcher(tmp_path):
+async def build_dispatcher(tmp_path, **settings_overrides: Any):
     db = Database(tmp_path / "integration.db")
     await db.connect()
     await db.initialize()
-    settings = make_settings(tmp_path)
+    settings = make_settings(tmp_path, **settings_overrides)
     bot = FakeBot()
     buffers = MediaGroupBuffer(delay_seconds=0.01, max_buffers=10, max_items=10)
     relay = RelayService(bot, db, settings)
@@ -406,6 +406,31 @@ async def test_commands_are_case_insensitive(tmp_path) -> None:
         )
         after_owner = bot.shortcut_calls.count("SendMessage")
         assert after_owner == after_user + 1
+    finally:
+        await buffers.close(flush=False)
+        await db.close()
+
+
+async def test_dossier_start_link_returns_signed_link_to_dossier_bot(tmp_path) -> None:
+    db, bot, dispatcher, buffers = await build_dispatcher(
+        tmp_path,
+        dossier_link_secret="x" * 32,
+        dossier_bot_username="ddnet_sliv_bot",
+    )
+    try:
+        await dispatcher.feed_update(
+            bot,
+            make_text_update(
+                40,
+                user_id=4001,
+                text="/start dossier_verify_abc123_-",
+                message_id=50,
+            ),
+        )
+        text, markup = bot.shortcut_messages[-1]
+        assert "Запуск подтверждён" in text
+        url = markup.inline_keyboard[0][0].url
+        assert url.startswith("https://t.me/ddnet_sliv_bot?start=p4001_")
     finally:
         await buffers.close(flush=False)
         await db.close()

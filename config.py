@@ -46,6 +46,8 @@ class Settings:
     telegram_max_retries: int
     floodwait_max_seconds: int
     maintenance_interval_seconds: int
+    dossier_link_secret: str = ""
+    dossier_bot_username: str = "ddnet_sliv_bot"
 
     @property
     def tzinfo(self) -> ZoneInfo:
@@ -146,6 +148,17 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
             "TIMEZONE должен быть корректным именем часового пояса, например Europe/Moscow."
         )
 
+    dossier_link_secret = env.get("DOSSIER_LINK_SECRET", "").strip()
+    if dossier_link_secret and len(dossier_link_secret) < 32:
+        errors.append("DOSSIER_LINK_SECRET должен содержать минимум 32 символа.")
+    dossier_bot_username = (
+        env.get("DOSSIER_BOT_USERNAME", "ddnet_sliv_bot")
+        .strip()
+        .lstrip("@")
+    ) or "ddnet_sliv_bot"
+    if dossier_bot_username and not re.fullmatch(r"[A-Za-z0-9_]{5,32}", dossier_bot_username):
+        errors.append("DOSSIER_BOT_USERNAME имеет неверный формат.")
+
     rate_limit_window_seconds = _get_int(
         env, "RATE_LIMIT_WINDOW_SECONDS", 60, minimum=1, maximum=86_400, errors=errors
     )
@@ -235,4 +248,6 @@ def load_settings(env_file: str | Path = ".env") -> Settings:
         telegram_max_retries=telegram_max_retries,
         floodwait_max_seconds=floodwait_max_seconds,
         maintenance_interval_seconds=maintenance_interval_seconds,
+        dossier_link_secret=dossier_link_secret,
+        dossier_bot_username=dossier_bot_username,
     )

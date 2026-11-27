@@ -6,6 +6,7 @@ import ui
 from callbacks import AdminUserCB, DialogCB, ListCB, MenuCB, UserCB
 from database import DialogRecord, MessageRecord
 from services.content import MessageContent
+from services.dossier_link import make_proof, verify_proof
 from services.media_groups import MediaGroupBuffer
 from services.rate_limit import RateLimiter
 from tests.conftest import message
@@ -217,3 +218,30 @@ def test_owner_reply_success_offers_to_reply_again() -> None:
     ).inline_keyboard[0][0]
     assert button.text == "↩️ Ответить ещё"
     assert DialogCB.unpack(button.callback_data).action == "reply"
+
+
+def test_dossier_proof_matches_dossier_bot_protocol_and_expires() -> None:
+    secret = "x" * 32
+    nonce = "abc123_-"
+    user_id = 1234567890123
+    issued_at = 1_800_000_000
+    proof = make_proof(
+        user_id=user_id, nonce=nonce, secret=secret, issued_at=issued_at
+    )
+    assert proof.startswith(f"p{user_id}_{issued_at}_{nonce}_")
+    assert len(proof) + 2 <= 64
+    assert verify_proof(
+        proof, user_id=user_id, nonce=nonce, secret=secret, now=issued_at + 1
+    )
+    assert not verify_proof(
+        proof, user_id=user_id + 1, nonce=nonce, secret=secret, now=issued_at + 1
+    )
+    assert not verify_proof(
+        proof, user_id=user_id, nonce="other123", secret=secret, now=issued_at + 1
+    )
+    assert not verify_proof(
+        proof, user_id=user_id, nonce=nonce, secret="y" * 32, now=issued_at + 1
+    )
+    assert not verify_proof(
+        proof, user_id=user_id, nonce=nonce, secret=secret, now=issued_at + 601
+    )
