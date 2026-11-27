@@ -180,7 +180,7 @@ def test_owner_interface_hides_sender_personal_data() -> None:
 def test_user_privacy_and_delivery_text() -> None:
     import keyboards
 
-    assert "владелец видит твоё имя, username и " in ui.welcome_text()
+    assert "владелец видит твоё имя, username и " not in ui.welcome_text()
     assert "владелец видит имя, username и Telegram ID" in ui.user_help_text()
     assert "Просто напиши сообщение ниже" not in ui.welcome_text()
     assert ui.delivery_success_user_text() == (
